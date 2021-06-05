@@ -1,10 +1,10 @@
 #!/bin/bash
-#title			: replication-start.sh
+#title			: create mysql replication on slave host
 #description	: This script automates the process of starting a Mysql Replication on 1 master node and N slave nodes.
-#author		 	: Nicolas Di Tullio
-#date			: 20160706
-#version		: 0.2  
-#usage			: bash mysql_replication_autostart.sh
+#author		 	: Alexandr Kopytov
+#date			: 20210601
+#version		: 0.3  
+#usage			: bash create_replication
 #bash_version	: 4.3.11(1)-release
 #=============================================================================
 
@@ -18,7 +18,6 @@
 
 DB='--databases mysql bx24 bxtest pinger'
 #DB='--databases pinger'
-DUMP_FILE="/tmp/mysql-export-$(date +"%Y%m%d%H%M%S").sql"
 
 USER=root
 PASS=mIE655gA
@@ -73,12 +72,10 @@ echo "  - Master database unlocked"
 for SLAVE_HOST in "${SLAVE_HOSTS[@]}"
 do
 	echo "SLAVE: $SLAVE_HOST"
-	echo "  - Creating database copy"
-#	mysql -h $SLAVE_HOST "-u$USER" "-p$PASS" -e "DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB;"
-#	scp $DUMP_FILE $SLAVE_HOST:$DUMP_FILE >/dev/null
-	mysql < $DUMP_FILE
+	echo "  - Import database to $SLAVE_HOST"
+	mysql -h $SLAVE_HOST < $DUMP_FILE
 
-	echo "  - Setting up slave replication"
+	echo "  - Setting up slave replication for $SLAVE_HOST"
 	mysql <<-EOSQL &
 		STOP SLAVE;
 		RESET SLAVE ALL;
@@ -92,7 +89,7 @@ do
 	# Wait for slave to get started and have the correct status
 	sleep 2
 	# Check if replication status is OK
-	SLAVE_OK=$(mysql -e "SHOW SLAVE STATUS\G;" | grep 'Waiting for master')
+	SLAVE_OK=$(mysql -h $SLAVE_HOST -e "SHOW SLAVE STATUS\G;" | grep 'Waiting for master')
 	if [ -z "$SLAVE_OK" ]; then
 		echo "  - Error ! Wrong slave IO state."
 	else
