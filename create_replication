@@ -16,8 +16,8 @@
 #   - All hosts must be able to receive mysql commands remotely from the node executing this script
 #
 
-DB='--databases mysql bx24 bxtest pinger'
-#DB='--databases pinger'
+#DB='--databases mysql bx24 bxtest pinger'
+DB='--databases mysql pinger'
 
 USER=root
 PASS=mIE655gA
@@ -34,7 +34,6 @@ SLAVE_HOSTS=(localhost)
 echo "MASTER: $MASTER_HOST"
 
 mysql -h $MASTER_HOST <<-EOSQL &
-	GRANT REPLICATION SLAVE ON *.* TO '$USER'@'%' IDENTIFIED BY '$PASS';
 	FLUSH PRIVILEGES;
 	FLUSH TABLES WITH READ LOCK;
 	DO SLEEP(3600);
@@ -44,7 +43,7 @@ echo "  - Waiting for database to be locked"
 sleep 3
 
 # Take note of the master log position at the time of dump
-MASTER_STATUS=$(mysql -h $MASTER_HOST "-u$USER" "-p$PASS" -ANe "SHOW MASTER STATUS;" | awk '{print $1 " " $2}')
+MASTER_STATUS=$(mysql -h $MASTER_HOST -ANe "SHOW MASTER STATUS;" | awk '{print $1 " " $2}')
 LOG_FILE=$(echo $MASTER_STATUS | cut -f1 -d ' ')
 LOG_POS=$(echo $MASTER_STATUS | cut -f2 -d ' ')
 echo "  - Current log file is $LOG_FILE and log position is $LOG_POS"
@@ -76,12 +75,12 @@ do
 	mysql -h $SLAVE_HOST < $DUMP_FILE
 
 	echo "  - Setting up slave replication for $SLAVE_HOST"
-	mysql <<-EOSQL &
+	mysql -h $SLAVE_HOST <<-EOSQL &
 		STOP SLAVE;
 		RESET SLAVE ALL;
 		CHANGE MASTER TO MASTER_HOST='$MASTER_HOST',
 		MASTER_USER='$USER',
-		MASTER_PASSWORD='$PASS',
+                MASTER_PASSWORD='$PASS',
 		MASTER_LOG_FILE='$LOG_FILE',
 		MASTER_LOG_POS=$LOG_POS;
 		START SLAVE;
